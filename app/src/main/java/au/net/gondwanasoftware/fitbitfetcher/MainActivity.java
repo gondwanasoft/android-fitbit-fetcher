@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
                 int headerColonPos;
                 boolean gotUserAgent, gotRequestedWith, gotHost;
                 int contentLength;
+                Charset charset = StandardCharsets.UTF_8;       //Charset.forName("UTF-8");
 
                 //Log.i(TAG,"Got server");
                 while (true) {
@@ -108,14 +109,20 @@ public class MainActivity extends AppCompatActivity {
                     // Read data payload:
                     char buf[] = new char[contentLength];
                     int charsRead = in.read(buf, 0, contentLength);
-                    setStatus("Writing to temp file");
+                    Log.i(TAG,"contentLength="+contentLength+" charsRead="+charsRead);
                     Log.i(TAG,"req data: "+ new String(buf));
 
                     // Write data to temp file:
-                    Charset charset = StandardCharsets.UTF_8;       //Charset.forName("UTF-8");
+                    setStatus("Writing to temp file");
+
+                    /*CharBuffer testCharBuffer = CharBuffer.wrap(buf);
+                    ByteBuffer testByteBuffer = charset.encode(testCharBuffer);
+                    byte[] testArray = testByteBuffer.array();
+                    Log.i(TAG,"length="+testByteBuffer.limit());*/
+
                     ByteBuffer tempByteBuffer = charset.encode(CharBuffer.wrap(buf));
                     Log.i(TAG,"before temp write");
-                    tempDataFile.write(tempByteBuffer.array());
+                    tempDataFile.write(tempByteBuffer.array(), 0, tempByteBuffer.limit());
                     Log.i(TAG,"after temp write");
                     //tempDataFile.close();
 
