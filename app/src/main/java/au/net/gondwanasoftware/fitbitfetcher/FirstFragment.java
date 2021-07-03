@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -23,6 +24,7 @@ public class FirstFragment extends Fragment {
 
     private FragmentFirstBinding binding;
     private TextView countTextView, statusTextView;
+    private Button getDataBtn;
 
     @Override
     public View onCreateView(
@@ -39,6 +41,7 @@ public class FirstFragment extends Fragment {
 
         countTextView = (TextView) view.findViewById(R.id.textview_count);
         statusTextView = (TextView) view.findViewById(R.id.status);
+        getDataBtn = (Button) view.findViewById(R.id.getDataBtn);
         MainActivity mainActivity = (MainActivity) getActivity();
         mainActivity.onStatusFragmentCreated(this);
 
@@ -57,12 +60,18 @@ public class FirstFragment extends Fragment {
         binding = null;
     }
 
-    public void setCount(int count) {
+    /*public void setCount(int count) {
         countTextView.setText(Integer.toString(count));
-    }
+    }*/
 
+    public void setFileName(String fileName) {
+        countTextView.setText(fileName);
+    }
     public void setStatus(String status) {
         statusTextView.setText(status);
     }
 
+    public void enableGetData(boolean enable) {
+        getDataBtn.setEnabled(enable);
+    }
 }
