@@ -193,9 +193,10 @@ public class MainActivity extends AppCompatActivity {
             } catch (FileNotFoundException e) {
                 setStatus("Can't open temp file");
                 Log.e(TAG,"Can't open tempDataFile: ", e);
-            } catch (IOException e) {
+            } catch (IOException e) {   // socket might have been closed when user selected 'GET DATA'
                 setStatus(e.getMessage());
-                Log.e(TAG, "IOException: ", e);
+                //Log.e(TAG, "IOException: ", e);
+                Log.i(TAG, "IOException: hopefully because of GET DATA or some other user intervention");
                 //e.printStackTrace();
             } catch (Exception e) {
                 setStatus(e.getMessage());
@@ -234,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     Integer processData(String fileName, boolean binary, BufferedReader in, int contentLength) throws Exception {
+        Log.i(TAG, "processData() fileName="+fileName+" binary="+binary+" len="+contentLength);
         if (fileName==null)
             throw new Exception("fileName header missing");
 
@@ -287,6 +289,7 @@ public class MainActivity extends AppCompatActivity {
 
             try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "rwt")) {
                 if (pfd != null ) {
+                    Log.i(TAG, "combineFiles():");
                     FileDescriptor fileDescriptor = pfd.getFileDescriptor();
                     FileChannel userDataFile = new FileOutputStream(pfd.getFileDescriptor()).getChannel();
 
@@ -297,13 +300,14 @@ public class MainActivity extends AppCompatActivity {
                             fileExists = true;
                             Log.i(TAG, "Appending " + fileName);
                             //userDataFile.transferFrom(tempDataFile, 0, tempDataFile.size());
-                            tempDataFile.transferTo(0, tempDataFile.size(), userDataFile);
+                            long bytesTransferred = tempDataFile.transferTo(0, tempDataFile.size(), userDataFile);
+                            Log.i(TAG, "   transferTo fileName="+fileName+" size="+tempDataFile.size()+" actual="+bytesTransferred);
                             tempDataFile.close();
                             part++;
                         } catch (FileNotFoundException e) {
                             fileExists = false;
                         }
-                    } while (fileExists);
+                    } while (fileExists);   // TODO 3 should only combine files up to the number read this session; not any dregs
 
                     userDataFile.close();
                     pfd.close();
@@ -335,13 +339,34 @@ public class MainActivity extends AppCompatActivity {
         char buf[] = new char[contentLength];
         int charsRead = in.read(buf, 0, contentLength);
         Log.i(TAG,"contentLength="+contentLength+" charsRead="+charsRead);
-        Log.i(TAG,"req data: "+ new String(buf));
+        if (charsRead != contentLength) {
+            Log.w(TAG, "File content length mismatch");
+        }
+        //Log.i(TAG,"req data: "+ new String(buf));
 
         // Write data to temp file:
+        // TODO 3 check for errors converting/writing data?
         setStatus("Writing to temp file");
-        ByteBuffer tempByteBuffer = charset.encode(CharBuffer.wrap(buf));
-        Log.i(TAG,"before temp write");
+        CharBuffer charBuffer = CharBuffer.wrap(buf);
+        Log.i(TAG, "charBuffer.length()="+charBuffer.length());
+        ByteBuffer tempByteBuffer = charset.encode(charBuffer);
+        Log.i(TAG,"before temp write; tempByteBuffer.limit()="+tempByteBuffer.limit());
+
+        // Check that all data is text. Sometimes files are corrupted (due to comms error?) and end with a sequence of NUL (despite having correct length).
+        // It may suffice to check only the last byte.
+        byte[] bufferArray = tempByteBuffer.array();
+        for (int i=0; i<tempByteBuffer.limit(); i++) {
+            if (bufferArray[i] < 0x0A) {    // ideally should check for ALL invalid characters
+                Log.w(TAG, "tempByteBuffer contains invalid char(s)");
+                return 555;
+            }
+        }
+
         tempDataFile.write(tempByteBuffer.array(), 0, tempByteBuffer.limit());
+        if (tempByteBuffer.limit() != contentLength) {
+            Log.w(TAG, "tempByteBuffer.limit() mismatch");
+            return 556;
+        }
         Log.i(TAG,"after temp write");
         return 200;
     }
@@ -412,6 +437,8 @@ public class MainActivity extends AppCompatActivity {
         statusResponses.put(400, "Bad Request");
         statusResponses.put(501, "Not implemented");
         statusResponses.put(507, "Insufficient Storage");
+        statusResponses.put(555, "Invalid data");
+        statusResponses.put(556, "Invalid length");
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -582,3 +609,5 @@ public class MainActivity extends AppCompatActivity {
         createFile(Uri.parse(dir.toString()));
     }
 }
+// TODO 3 Need some way to start a new session, clearing out old files and ignoring files received from previous sessions. Does request contain date header? Can I add it? Reset in onResume()?
+// TODO 9 Ideally, run in background or while 'stopped'
